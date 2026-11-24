@@ -58,7 +58,7 @@ const K = {
 };
 const SRC = {
   t: 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit',
-  r: 'https://www.google.com/recaptcha/api.js?render=explicit',
+  r: 'https://www.google.com/recaptcha/api.js?onload=rcLoaded&render=explicit',
   h: 'https://js.hcaptcha.com/1/api.js?render=explicit'
 };
 
@@ -94,7 +94,11 @@ function widget(b, src, ready, render) {
 
 const turnstileCheck = b => widget(b, SRC.t, () => 0, (el, ok, no) =>
   turnstile.render(el, { sitekey: K.t, callback: ok, 'error-callback': () => { no(); return true; } }));
-const recaptchaCheck = b => widget(b, SRC.r, () => new Promise(r => grecaptcha.ready(r)), (el, ok, no) =>
+// reCAPTCHA calls window.rcLoaded once its full API is ready (grecaptcha.ready isn't reliable everywhere).
+let rcResolve;
+const rcPromise = new Promise(r => { rcResolve = r; });
+window.rcLoaded = () => rcResolve();
+const recaptchaCheck = b => widget(b, SRC.r, () => rcPromise, (el, ok, no) =>
   grecaptcha.render(el, { sitekey: K.r, callback: ok, 'error-callback': no }));
 const hcaptchaCheck = b => widget(b, SRC.h, () => 0, (el, ok, no) =>
   hcaptcha.render(el, { sitekey: K.h, callback: ok, 'error-callback': no }));
