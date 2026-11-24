@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Verifying that you’re human</title>
+<style id="gate-css">
+  body{margin:0;padding:2rem 1.25rem 4rem;background:#fbfbfc;color:#16181d;font:16px/1.55 "Avenir Next","Segoe UI",system-ui,sans-serif}
+  main{max-width:34rem;margin:6vh auto 0}
+  h1{font-size:1.6rem;line-height:1.2;margin:0 0 .4rem}
+  h2{font-size:1rem;margin:0 0 .9rem}
+  .sub{margin:0 0 1.6rem;color:#555a66}
+  ol{list-style:none;margin:0 0 1.8rem;padding:0;display:grid;gap:.35rem}
+  ol li{padding-left:1.7rem;position:relative;color:#8a8f9b}
+  ol li::before{content:"○";position:absolute;left:0}
+  ol li[data-s=now]{color:#16181d;font-weight:600}
+  ol li[data-s=now]::before{content:"●";animation:p 1s ease-in-out infinite alternate}
+  ol li[data-s=done]{color:#16181d}
+  ol li[data-s=done]::before{content:"✓";color:#177245}
+  @keyframes p{to{opacity:.25}}
+  @media (prefers-reduced-motion:reduce){ol li[data-s=now]::before{animation:none}}
+  #panel{border:1px solid #d7d9df;border-radius:8px;padding:1.1rem 1.2rem;background:#fff}
+  #box{min-height:2rem;margin-bottom:.6rem}
+  #log{list-style:none;margin:0;padding:0;font-size:.9rem;color:#555a66}
+  #log li::before{content:"✓ ";color:#177245}
+  #log li.bad{color:#a4262c}
+  #log li.bad::before{content:"✗ ";color:#a4262c}
+  button{font:inherit;padding:.55rem 1rem;border:1px solid #16181d;background:#16181d;color:#fff;border-radius:6px;cursor:pointer}
+  button:focus-visible{outline:3px solid #2b6fd6;outline-offset:2px}
+  .hold{width:100%;padding:1rem;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+  .bar{height:6px;background:#e6e8ec;border-radius:3px;margin-top:.7rem;overflow:hidden}
+  .bar i{display:block;height:100%;width:0;background:#177245}
+  .hint{margin:.5rem 0 0;font-size:.85rem;color:#555a66}
+  .hp{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
+</style>
+</head>
+<body>
+<main>
+  <h1>Verifying that you’re human</h1>
+  <p class="sub">Ten checks from several providers, some of them twice. Keep this tab open.</p>
+  <ol id="list"></ol>
+  <section id="panel" aria-live="polite">
+    <h2 id="ph">Starting…</h2>
+    <div id="box"></div>
+    <ul id="log"></ul>
+  </section>
+  <input class="hp" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+  <noscript><p>JavaScript is required to run these checks.</p></noscript>
+</main>
+
+<script>
+// Public TEST keys published by each provider: the widgets are the real ones,
+// but the test keys always pass. Swap in your own site keys for live challenges.
+const K = {
+  t: '1x00000000000000000000AA',                      // Cloudflare Turnstile
+  r: '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI',      // Google reCAPTCHA v2
+  h: '10000000-ffff-ffff-ffff-000000000001'           // hCaptcha
+};
+const SRC = {
+  t: 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit',
+  r: 'https://www.google.com/recaptcha/api.js?render=explicit',
+  h: 'https://js.hcaptcha.com/1/api.js?render=explicit'
+};
+
+const $ = s => document.querySelector(s);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const t0 = performance.now();
+const box = $('#box'), logEl = $('#log');
+
+function log(msg, ok = true) {
+  const li = document.createElement('li');
+  li.textContent = msg;
+  if (!ok) li.className = 'bad';
+  logEl.appendChild(li);
+}
+
+const loaded = {};
+function loadScript(src) {
+  return loaded[src] || (loaded[src] = new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = src; s.async = true; s.onload = res;
+    s.onerror = () => { delete loaded[src]; rej(new Error('Could not load ' + new URL(src).hostname + ' (offline or blocked).')); };
+    document.head.appendChild(s);
+  }));
+}
+
+function widget(b, src, ready, render) {
+  return loadScript(src).then(ready).then(() => new Promise((res, rej) => {
+    const el = document.createElement('div');
+    b.appendChild(el);
+    render(el, res, () => rej(new Error('The challenge reported an error.')));
+  }));
+}
+
+const turnstileCheck = b => widget(b, SRC.t, () => 0, (el, ok, no) =>
+  turnstile.render(el, { sitekey: K.t, callback: ok, 'error-callback': () => { no(); return true; } }));
+const recaptchaCheck = b => widget(b, SRC.r, () => new Promise(r => grecaptcha.ready(r)), (el, ok, no) =>
+  grecaptcha.render(el, { sitekey: K.r, callback: ok, 'error-callback': no }));
+const hcaptchaCheck = b => widget(b, SRC.h, () => 0, (el, ok, no) =>
+  hcaptcha.render(el, { sitekey: K.h, callback: ok, 'error-callback': no }));
+
+// Local browser-integrity scan: automation flags, headless signs, honeypot, timing.
+async function scan(b, lg, extra = []) {
+  const n = navigator, w = window, d = document;
+  const checks = [
+    ['No webdriver flag', () => !n.webdriver],
+    ['No automation globals', () => !(w.callPhantom || w._phantom || w.__nightmare || w.domAutomation ||
+      w.domAutomationController || d.__selenium_unwrapped || d.__webdriver_evaluate || w.__playwright || w.__pwInitScripts)],
+    ['No Selenium driver variables', () => !Object.keys(d).concat(Object.keys(w)).some(k => /^\$?cdc_|selenium/i.test(k))],
+    ['Not a headless user agent', () => !/HeadlessChrome|PhantomJS|Electron/i.test(n.userAgent)],
+    ['Browser reports languages', () => !!(n.languages && n.languages.length)],
+    ['Real screen and window size', () => screen.width > 0 && screen.height > 0 && w.outerWidth > 0],
+    ['Timezone resolves', () => !!Intl.DateTimeFormat().resolvedOptions().timeZone]
+  ].concat(extra);
+  const failed = [];
+  for (const [name, fn] of checks) {
+    let ok = false;
+    try { ok = fn(); } catch (e) {}
+    lg(name, ok);
+    if (!ok) failed.push(name);
+    await sleep(140);
+  }
+  if (failed.length) throw new Error('Failed: ' + failed.join(', '));
+}
+
+// Proof of work: find a nonce whose SHA-256 starts with 16 zero bits, then verify it.
+async function pow(b, lg) {
+  if (!(crypto && crypto.subtle)) throw new Error('Proof of work needs a secure context (https).');
+  const salt = Array.from(crypto.getRandomValues(new Uint32Array(4))).join('-');
+  const enc = new TextEncoder();
+  const hash = async n => new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(salt + ':' + n)));
+  b.textContent = 'Solving a computational puzzle…';
+  let n = 0;
+  for (;; n++) {
+    const h = await hash(n);
+    if (h[0] === 0 && h[1] === 0) break;
+    if (n % 1500 === 0) { b.textContent = 'Solving a computational puzzle… ' + n + ' hashes tried'; await sleep(0); }
+  }
+  const h = await hash(n);
+  if (h[0] || h[1]) throw new Error('Puzzle solution did not verify.');
+  lg('Solution found after ' + n + ' hashes and verified');
+}
+
+// Behaviour check: needs a real, trusted press held for two seconds.
+function hold(b, lg) {
+  return new Promise(res => {
+    b.innerHTML = '<button class="hold" type="button">Press and hold</button><div class="bar"><i></i></div><p class="hint">Hold the button for two seconds.</p>';
+    const btn = b.querySelector('button'), bar = b.querySelector('i');
+    let start = 0, raf = 0, down = false;
+    const tick = () => {
+      const p = Math.min((performance.now() - start) / 2000, 1);
+      bar.style.width = p * 100 + '%';
+      if (p >= 1) { down = false; lg('Trusted press held for two seconds'); res(); }
+      else raf = requestAnimationFrame(tick);
+    };
+    const begin = e => { if (!e.isTrusted || down) return; down = true; start = performance.now(); raf = requestAnimationFrame(tick); };
+    const stop = () => { down = false; cancelAnimationFrame(raf); bar.style.width = '0'; };
+    btn.addEventListener('pointerdown', e => { begin(e); try { btn.setPointerCapture(e.pointerId); } catch (x) {} });
+    btn.addEventListener('pointerup', stop);
+    btn.addEventListener('pointercancel', stop);
+    btn.addEventListener('contextmenu', e => e.preventDefault());
+    btn.addEventListener('keydown', e => { if ((e.key === ' ' || e.key === 'Enter') && !e.repeat) begin(e); });
+    btn.addEventListener('keyup', stop);
+  });
+}
+
+const stages = [
+  { n: 'Browser integrity scan',            run: (b, l) => scan(b, l) },
+  { n: 'Cloudflare Turnstile',              run: turnstileCheck },
+  { n: 'Google reCAPTCHA',                  run: recaptchaCheck },
+  { n: 'hCaptcha',                          run: hcaptchaCheck },
+  { n: 'Proof-of-work puzzle',              run: pow },
+  { n: 'Cloudflare Turnstile (second pass)', run: turnstileCheck },
+  { n: 'Press-and-hold behaviour check',    run: hold },
+  { n: 'Google reCAPTCHA (second pass)',    run: recaptchaCheck },
+  { n: 'hCaptcha (second pass)',            run: hcaptchaCheck },
+  { n: 'Final integrity scan',              run: (b, l) => scan(b, l, [
+      ['Honeypot field left empty', () => document.querySelector('.hp').value === ''],
+      ['Checks were not rushed', () => performance.now() - t0 > 8000]
+  ]) }
+];
+
+function retry() {
+  return new Promise(res => {
+    box.textContent = '';
+    const btn = document.createElement('button');
+    btn.type = 'button'; btn.textContent = 'Run this check again';
+    btn.onclick = res; box.appendChild(btn); btn.focus();
+  });
+}
+
+function final() {
+  document.getElementById('gate-css').remove();
+  document.title = 'You arent a bot!';
+  document.body.removeAttribute('style');
+  document.body.textContent = 'You arent a bot!';
+  document.body.style.color = '#000';
+}
+
+async function main() {
+  const list = $('#list');
+  stages.forEach(s => { const li = document.createElement('li'); li.textContent = s.n; li.dataset.s = 'todo'; list.appendChild(li); });
+  for (let i = 0; i < stages.length; i++) {
+    const s = stages[i], li = list.children[i];
+    li.dataset.s = 'now';
+    for (;;) {
+      $('#ph').textContent = 'Check ' + (i + 1) + ' of ' + stages.length + ': ' + s.n;
+      box.textContent = ''; logEl.textContent = '';
+      try { await s.run(box, log); break; }
+      catch (e) { log(e.message, false); await retry(); }
+    }
+    li.dataset.s = 'done';
+    box.textContent = '';
+    await sleep(600);
+  }
+  final();
+}
+main();
+</script>
+</body>
+</html>
