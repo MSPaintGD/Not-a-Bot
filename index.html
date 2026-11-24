@@ -380,8 +380,16 @@ function final() {
 document.getElementById('gate-css').remove();
 document.title = 'You arent a bot!';
 document.body.removeAttribute('style');
-document.body.textContent = 'You arent a bot!';
 document.body.style.color = '#000';
+document.body.style.fontFamily = 'system-ui,sans-serif';
+document.body.style.padding = '2rem 1.25rem';
+const h = document.createElement('h1');
+h.textContent = 'You arent a bot!';
+const p1 = document.createElement('p');
+p1.textContent = 'Congratulations! After sixteen different checks, we can officially confirm that you are not a bot. You are a real, living, breathing human, and we are very proud of you.';
+const p2 = document.createElement('p');
+p2.textContent = 'Thank you for your patience, your clicks, your typing, and your steady hands.';
+document.body.append(h, p1, p2);
 }
 async function main() {
 const list = $('#list');
