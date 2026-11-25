@@ -380,16 +380,73 @@ function final() {
 document.getElementById('gate-css').remove();
 document.title = 'You arent a bot!';
 document.body.removeAttribute('style');
+document.body.textContent = '';
 document.body.style.color = '#000';
+document.body.style.background = '#fff';
 document.body.style.fontFamily = 'system-ui,sans-serif';
-document.body.style.padding = '2rem 1.25rem';
-const h = document.createElement('h1');
-h.textContent = 'You arent a bot!';
-const p1 = document.createElement('p');
-p1.textContent = 'Congratulations! After sixteen different checks, we can officially confirm that you are not a bot. You are a real, living, breathing human, and we are very proud of you.';
-const p2 = document.createElement('p');
-p2.textContent = 'Thank you for your patience, your clicks, your typing, and your steady hands.';
-document.body.append(h, p1, p2);
+document.body.style.lineHeight = '1.55';
+document.body.style.padding = '2rem 1.25rem 4rem';
+const wrap = document.createElement('main');
+wrap.style.maxWidth = '36rem';
+wrap.style.margin = '4vh auto 0';
+const el = (tag, text, css) => {
+const e = document.createElement(tag);
+e.textContent = text;
+if (css) e.style.cssText = css;
+return e;
+};
+wrap.append(
+el('h1', 'You arent a bot!'),
+el('p', 'Congratulations! After sixteen different checks from several providers, we can officially confirm that you are not a bot. You are a real, living, breathing human, and we are very proud of you.'),
+el('p', 'Thank you for your patience, your clicks, your typing, and your steady hands. Not a single check was repeated, and you still got through every one of them.'),
+el('p', 'Being human is hard. You solved a puzzle, pressed and held a button, typed a phrase by hand, and even reacted faster than a sleepy robot ever could. That is seriously impressive.')
+);
+wrap.append(el('h2', 'Your gifts'));
+const gifts = [
+['A gold star', 'A shiny virtual gold star for passing everything on the first go. Or the fifth go. We do not judge.'],
+['Certificate of humanity', 'Officially stamped and signed by nobody in particular. Frame it with pride.'],
+['One free high five', 'Raise your hand right now and give the air a good smack. It counts.'],
+['A cookie', 'The tasty kind, not the tracking kind. No data was collected, only crumbs.'],
+['Bonus confetti', 'Click this gift to unwrap it and see what happens.']
+];
+const list = document.createElement('div');
+list.style.cssText = 'display:grid;gap:.6rem;margin-bottom:1.6rem';
+gifts.forEach(([name, text], i) => {
+const b = document.createElement('button');
+b.type = 'button';
+b.style.cssText = 'text-align:left;font:inherit;padding:.8rem 1rem;border:1px solid #d7d9df;border-radius:8px;background:#fafafa;color:#000;cursor:pointer';
+b.textContent = 'Gift ' + (i + 1) + ': ' + name + ' (click to open)';
+b.onclick = () => {
+b.textContent = name + ': ' + text;
+b.style.background = '#eef8f1';
+b.style.borderColor = '#177245';
+b.onclick = null;
+if (i === gifts.length - 1) confetti();
+};
+list.appendChild(b);
+});
+wrap.append(list);
+wrap.append(el('h2', 'What to do now that you are done'));
+const steps = document.createElement('ol');
+steps.style.paddingLeft = '1.3rem';
+['Open all of your gifts above, they are all yours.', 'Take a deep breath and stretch your hands, you earned it.', 'Drink a glass of water.', 'Close this tab, or keep it open and bask in the glory of being human.', 'Go and do something wonderfully human, like looking out a window or petting a dog.'].forEach(s => steps.appendChild(el('li', s, 'margin-bottom:.35rem')));
+wrap.append(steps);
+wrap.append(el('p', 'Thanks for visiting. See you next time, fellow human.', 'margin-top:1.6rem;color:#555a66'));
+document.body.append(wrap);
+function confetti() {
+const colors = ['#e63946', '#f4a261', '#2a9d8f', '#457b9d', '#9b5de5', '#f15bb5'];
+for (let i = 0; i < 90; i++) {
+const c = document.createElement('i');
+const size = 6 + rnd(8);
+c.style.cssText = 'position:fixed;top:-20px;pointer-events:none;border-radius:2px;width:' + size + 'px;height:' + size + 'px;left:' + rnd(100) + 'vw;background:' + colors[rnd(colors.length)];
+document.body.appendChild(c);
+const fall = c.animate([
+{ transform: 'translateY(0) rotate(0deg)', opacity: 1 },
+{ transform: 'translateY(' + (window.innerHeight + 40) + 'px) rotate(' + (360 + rnd(360)) + 'deg)', opacity: 0.9 }
+], { duration: 2000 + rnd(2500), delay: rnd(600), easing: 'ease-in', fill: 'forwards' });
+fall.onfinish = () => c.remove();
+}
+}
 }
 async function main() {
 const list = $('#list');
